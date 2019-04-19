@@ -35,9 +35,6 @@ export default function(db, opts, callback) {
           : false
   const excludeStart = descending && !(opts.inclusive_end !== false)
   const inclusiveEnd = selectedKeys === false && (descending || opts.inclusive_end !== false)
-  if(selectedKeys) {
-    console.log('Uses keys', selectedKeys)
-  }
   const docToRow = doc => {
     const result = {
       id: doc.id,
