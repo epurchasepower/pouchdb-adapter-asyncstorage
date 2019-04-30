@@ -38,22 +38,26 @@ export default function(db, opts, callback) {
   const docToRow = doc => {
     const result = {
       id: doc.id,
-      key: doc.id,
-      value: {
+      key: doc.id
+    }
+    if(doc.error) {
+      result.error = doc.error
+    } else {
+      result.value = {
         deleted: doc.deleted,
         rev: doc.winningRev
       }
-    }
 
-    if (includeDoc && !doc.deleted) {
-      result.doc = {
-        ...doc.data,
-        _id: doc.id,
-        _rev: doc.winningRev
-      }
+      if (includeDoc && !doc.deleted) {
+        result.doc = {
+          ...doc.data,
+          _id: doc.id,
+          _rev: doc.winningRev
+        }
 
-      if (includeConflicts) {
-        result.doc._conflicts = collectConflicts(doc)
+        if (includeConflicts) {
+          result.doc._conflicts = collectConflicts(doc)
+        }
       }
     }
 
@@ -64,6 +68,7 @@ export default function(db, opts, callback) {
     db,
     {
       selectedKeys,
+      selectedKeyOrder: opts.keys,
       filterKey,
       startkey,
       endkey,
@@ -94,6 +99,7 @@ const getDocs = (
   db,
   {
     selectedKeys,
+    selectedKeyOrder,
     filterKey,
     startkey,
     endkey,
@@ -121,6 +127,34 @@ const getDocs = (
       return true
     })
 
+    const returnResult = (result, dataObj) => {
+      let finalData
+      if(selectedKeys) {
+        const indexedItems = {}
+        result.forEach(item => {
+          indexedItems[item.id] = item
+          item.data = dataObj[item.id]
+        })
+        finalData = selectedKeyOrder.map(k => {
+          if(indexedItems[k]) {
+            return indexedItems[k]
+          } else {
+            return {id: k, error: 'not_found'}
+          }
+        })
+      } else {
+        finalData = result.map(item => {
+          item.data = dataObj[item.id]
+          return item
+        })
+
+      }
+      return callback(
+        null,
+        finalData
+      )
+    }
+
     db.storage.multiGet(toDocumentKeys(filterKeys), (error, docs) => {
       if (error) return callback(error)
 
@@ -142,13 +176,7 @@ const getDocs = (
         }, {})
 
         if (!includeAttachments) {
-          return callback(
-            null,
-            result.map(item => {
-              item.data = dataObj[item.id]
-              return item
-            })
-          )
+          return returnResult(result, dataObj)
         }
 
         inlineAttachments(db, dataDocs, { binaryAttachments }, error => {
